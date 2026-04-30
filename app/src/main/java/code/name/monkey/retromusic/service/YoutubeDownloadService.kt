@@ -13,7 +13,6 @@ import code.name.monkey.retromusic.network.YoutubeSearchService
 import code.name.monkey.retromusic.network.YoutubeTrack
 import kotlinx.coroutines.*
 import java.io.*
-import java.net.URL
 
 class YoutubeDownloadService : Service() {
 
@@ -87,36 +86,50 @@ class YoutubeDownloadService : Service() {
     }
 
     private suspend fun downloadFile(
-    url: String, outputFile: File, onProgress: (Int) -> Unit
-) = withContext(Dispatchers.IO) {
-    val client = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
-
-    val request = okhttp3.Request.Builder()
-        .url(url)
-        .header("User-Agent", "Mozilla/5.0 (Android)")
-        .header("Referer", "https://www.youtube.com/")
-        .build()
-
-    val response = client.newCall(request).execute()
-    val body = response.body ?: throw Exception("Boş response")
-    val fileSize = body.contentLength()
-    var downloaded = 0L
-
-    body.byteStream().use { input ->
-        FileOutputStream(outputFile).use { output ->
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            while (input.read(buffer).also { bytesRead = it } != -1) {
-                output.write(buffer, 0, bytesRead)
-                downloaded += bytesRead
-                if (fileSize > 0) onProgress((downloaded * 100 / fileSize).toInt())
+        url: String, outputFile: File, onProgress: (Int) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        try {
+            // Klasörün var olduğundan kesin emin olalım
+            val parentDir = outputFile.parentFile
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs()
             }
+
+            // YouTube bot korumasını aşmak için Chrome (Windows) User-Agent kullanıyoruz
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                .header("Referer", "https://www.youtube.com/")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) throw Exception("Sunucu indirmeyi reddetti: HTTP ${response.code}")
+
+            val body = response.body ?: throw Exception("Boş response")
+            val fileSize = body.contentLength()
+            var downloaded = 0L
+
+            body.byteStream().use { input ->
+                FileOutputStream(outputFile).use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        downloaded += bytesRead
+                        if (fileSize > 0) onProgress((downloaded * 100 / fileSize).toInt())
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw e // Hatayı yakalayıp yukarı fırlatıyoruz ki showErrorNotification çalışsın
         }
     }
-}
 
     private fun scanFile(file: File) {
         sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
