@@ -273,7 +273,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {}
 
     override fun onMenuItemSelected(menuItem: MenuItem) = false
-}
+
 private fun setupYoutubeSearch() {
     youtubeViewModel = ViewModelProvider(this)[YoutubeSearchViewModel::class.java]
     youtubeAdapter = YoutubeSearchAdapter(
