@@ -4,6 +4,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.downloader.Downloader
+import org.schabi.newpipe.extractor.downloader.Request
+import org.schabi.newpipe.extractor.downloader.Response
+import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -11,33 +15,68 @@ data class YoutubeTrack(
     val videoId: String,
     val title: String,
     val artist: String,
-    val thumbnailUrl: String,
     val duration: Long,
+    val thumbnailUrl: String,
     val url: String
 )
 
 object YoutubeSearchService {
 
+    private var isInitialized = false
+
     fun init() {
-        NewPipe.init(DownloaderImpl.getInstance())
+        if (isInitialized) return
+        
+        // Python'daki ayarlar ve header mantığını OkHttp ile kuruyoruz
+        NewPipe.init(object : Downloader() {
+            private val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            override fun execute(request: Request): Response {
+                val reqBuilder = okhttp3.Request.Builder().url(request.url())
+                
+                request.headers().forEach { (key, list) ->
+                    list.forEach { reqBuilder.addHeader(key, it) }
+                }
+
+                // YouTube'un bot sanıp 403 vermemesi için Windows/Chrome kimliği
+                reqBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                reqBuilder.header("Accept-Language", "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7")
+
+                val okHttpResponse = client.newCall(reqBuilder.build()).execute()
+                val body = okHttpResponse.body?.string() ?: ""
+                
+                return Response(
+                    okHttpResponse.code,
+                    okHttpResponse.message,
+                    okHttpResponse.headers.toMultimap(),
+                    body,
+                    request.url()
+                )
+            }
+        })
+        isInitialized = true
     }
 
     suspend fun search(query: String): List<YoutubeTrack> = withContext(Dispatchers.IO) {
         try {
-            val youtube = ServiceList.YouTube
-            val searchExtractor = youtube.getSearchExtractor(query)
-            searchExtractor.fetchPage()
-
+            if (!isInitialized) init()
+            
+            // Python'daki "ytsearch:sorgu" mantığı
+            val searchInfo = SearchInfo.getInfo(ServiceList.YouTube, ServiceList.YouTube.searchQHFactory.fromQuery(query))
             val results = mutableListOf<YoutubeTrack>()
-            for (item in searchExtractor.initialPage.items) {
+            
+            for (item in searchInfo.relatedItems) {
                 if (item is StreamInfoItem) {
                     results.add(
                         YoutubeTrack(
                             videoId = item.url.substringAfter("v=").substringBefore("&"),
                             title = item.name,
-                            artist = item.uploaderName ?: "Bilinmiyor",
-                            thumbnailUrl = item.thumbnails.firstOrNull()?.url ?: "",
-                            duration = item.duration,
+                            artist = item.uploaderName,
+                            duration = item.duration ?: 0L,
+                            thumbnailUrl = item.thumbnailUrl,
                             url = item.url
                         )
                     )
@@ -52,9 +91,16 @@ object YoutubeSearchService {
 
     suspend fun getAudioStreamUrl(videoUrl: String): String? = withContext(Dispatchers.IO) {
         try {
+            if (!isInitialized) init()
+            
             val streamInfo = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
-            streamInfo.audioStreams.maxByOrNull { it.averageBitrate }?.content
+            
+            // Python'daki 'bestaudio/best' mantığı: Sadece ses dosyalarını al ve en yüksek kaliteli olanı seç
+            val bestAudio = streamInfo.audioStreams.maxByOrNull { it.bitrate }
+            
+            bestAudio?.content
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }
