@@ -175,7 +175,7 @@ dependencies {
     implementation(libs.tankery.circularSeekBar)
 
     implementation(libs.androidx.exoplayer)
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:0.24.7")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.8")
     implementation("com.mpatric:mp3agic:0.9.1")
 }
 
