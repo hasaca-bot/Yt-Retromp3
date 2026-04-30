@@ -154,12 +154,14 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     }
 
     private fun showData(data: List<Any>) {
-        if (data.isNotEmpty()) {
-            searchAdapter.swapDataSet(data)
-        } else {
-            searchAdapter.swapDataSet(ArrayList())
-        }
+    if (data.isNotEmpty()) {
+        searchAdapter.swapDataSet(data)
+    } else {
+        searchAdapter.swapDataSet(ArrayList())
     }
+    binding.empty.isVisible = data.isEmpty() && 
+        !binding.searchView.text.isNullOrEmpty()
+}
 
     private fun checkForMargins() {
         if (mainActivity.isBottomNavVisible) {
