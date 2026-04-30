@@ -27,7 +27,6 @@ object YoutubeSearchService {
     fun init() {
         if (isInitialized) return
         
-        // Python'daki ayarlar ve header mantığını OkHttp ile kuruyoruz
         NewPipe.init(object : Downloader() {
             private val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -41,7 +40,7 @@ object YoutubeSearchService {
                     list.forEach { reqBuilder.addHeader(key, it) }
                 }
 
-                // YouTube'un bot sanıp 403 vermemesi için Windows/Chrome kimliği
+                // YouTube bot korumasını aşmak için
                 reqBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
                 reqBuilder.header("Accept-Language", "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7")
 
@@ -64,19 +63,22 @@ object YoutubeSearchService {
         try {
             if (!isInitialized) init()
             
-            // Python'daki "ytsearch:sorgu" mantığı
             val searchInfo = SearchInfo.getInfo(ServiceList.YouTube, ServiceList.YouTube.searchQHFactory.fromQuery(query))
             val results = mutableListOf<YoutubeTrack>()
             
             for (item in searchInfo.relatedItems) {
                 if (item is StreamInfoItem) {
+                    // 1. Video ID'sini linkin içinden söküp alıyoruz
+                    val vidId = item.url.substringAfter("v=").substringBefore("&")
+                    
                     results.add(
                         YoutubeTrack(
-                            videoId = item.url.substringAfter("v=").substringBefore("&"),
+                            videoId = vidId,
                             title = item.name,
                             artist = item.uploaderName,
                             duration = item.duration ?: 0L,
-                            thumbnailUrl = item.thumbnailUrl,
+                            // 2. Python kodundaki gibi küçük resmi kendimiz üretiyoruz! Hata riskini sıfırladık.
+                            thumbnailUrl = "https://i.ytimg.com/vi/$vidId/hqdefault.jpg",
                             url = item.url
                         )
                     )
@@ -95,7 +97,7 @@ object YoutubeSearchService {
             
             val streamInfo = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
             
-            // Python'daki 'bestaudio/best' mantığı: Sadece ses dosyalarını al ve en yüksek kaliteli olanı seç
+            // En yüksek ses kalitesini ('bestaudio/best') seçiyoruz
             val bestAudio = streamInfo.audioStreams.maxByOrNull { it.bitrate }
             
             bestAudio?.content
