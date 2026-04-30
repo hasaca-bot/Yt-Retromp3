@@ -280,8 +280,23 @@ private fun setupYoutubeSearch() {
         onPlay = { track -> playYoutubeTrack(track) },
         onDownload = { track -> downloadYoutubeTrack(track) }
     )
+
+    binding.rvYoutubeResults.apply {
+        adapter = youtubeAdapter
+        layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+    }
+
     youtubeViewModel.results.observe(viewLifecycleOwner) { tracks ->
         youtubeAdapter.submitList(tracks)
+        binding.rvYoutubeResults.visibility =
+            if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        binding.tvYoutubeHeader.visibility =
+            if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    youtubeViewModel.loading.observe(viewLifecycleOwner) { loading ->
+        binding.youtubeProgressBar.visibility =
+            if (loading) android.view.View.VISIBLE else android.view.View.GONE
     }
 }
 
