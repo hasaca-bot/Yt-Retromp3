@@ -175,6 +175,8 @@ dependencies {
     implementation(libs.tankery.circularSeekBar)
 
     implementation(libs.androidx.exoplayer)
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:0.24.1")
+    implementation("com.mpatric:mp3agic:0.9.1")
 }
 
 fun getProperties(fileName: String): Properties? {
