@@ -52,7 +52,6 @@ import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent
 import java.util.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import code.name.monkey.retromusic.service.MusicPlayerRemote
 
 
 class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
