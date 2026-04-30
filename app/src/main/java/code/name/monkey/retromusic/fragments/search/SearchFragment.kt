@@ -305,11 +305,13 @@ private fun playYoutubeTrack(track: YoutubeTrack) {
 }
 
 private fun downloadYoutubeTrack(track: YoutubeTrack) {
-    Toast.makeText(requireContext(), "⬇ İndiriliyor: ${track.title}", Toast.LENGTH_SHORT).show()
-    code.name.monkey.retromusic.service.YoutubeDownloadService.startDownload(
-        requireContext(), track
-    )
+        Toast.makeText(requireContext(), "⬇ İndiriliyor: ${track.title}", Toast.LENGTH_SHORT).show()
+        code.name.monkey.retromusic.service.YoutubeDownloadService.startDownload(
+            requireContext(), track
+        )
+    }
 }
+
 enum class Filter {
     SONGS,
     ARTISTS,
