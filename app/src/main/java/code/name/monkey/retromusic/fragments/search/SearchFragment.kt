@@ -50,6 +50,9 @@ import code.name.monkey.retromusic.network.YoutubeTrack
 import android.widget.Toast
 import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent
 import java.util.*
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import code.name.monkey.retromusic.service.MusicPlayerRemote
 
 
 class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
@@ -301,7 +304,33 @@ private fun setupYoutubeSearch() {
 }
 
 private fun playYoutubeTrack(track: YoutubeTrack) {
-    Toast.makeText(requireContext(), "▶ ${track.title}", Toast.LENGTH_SHORT).show()
+    Toast.makeText(requireContext(), "▶ Yükleniyor...", Toast.LENGTH_SHORT).show()
+    lifecycleScope.launch {
+        val streamUrl = YoutubeSearchService.getAudioStreamUrl(track.url)
+        if (streamUrl != null) {
+            MusicPlayerRemote.openAndShuffleQueue(
+                listOf(
+                    code.name.monkey.retromusic.model.Song(
+                        id = track.videoId.hashCode().toLong(),
+                        title = track.title,
+                        trackNumber = 0,
+                        year = 0,
+                        duration = track.duration * 1000,
+                        data = streamUrl,
+                        dateModified = 0,
+                        albumId = -1,
+                        albumName = "",
+                        artistId = -1,
+                        artistName = track.artist,
+                        composer = null,
+                        albumArtist = null
+                    )
+                ), true
+            )
+        } else {
+            Toast.makeText(requireContext(), "Stream alınamadı", Toast.LENGTH_SHORT).show()
+        }
+    }
 }
 
 private fun downloadYoutubeTrack(track: YoutubeTrack) {
