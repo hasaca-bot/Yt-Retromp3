@@ -87,23 +87,36 @@ class YoutubeDownloadService : Service() {
     }
 
     private suspend fun downloadFile(
-        url: String, outputFile: File, onProgress: (Int) -> Unit
-    ) = withContext(Dispatchers.IO) {
-        val connection = URL(url).openConnection().apply { connect() }
-        val fileSize = connection.contentLength
-        var downloaded = 0
-        BufferedInputStream(connection.getInputStream()).use { input ->
-            FileOutputStream(outputFile).use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloaded += bytesRead
-                    if (fileSize > 0) onProgress(downloaded * 100 / fileSize)
-                }
+    url: String, outputFile: File, onProgress: (Int) -> Unit
+) = withContext(Dispatchers.IO) {
+    val client = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val request = okhttp3.Request.Builder()
+        .url(url)
+        .header("User-Agent", "Mozilla/5.0 (Android)")
+        .header("Referer", "https://www.youtube.com/")
+        .build()
+
+    val response = client.newCall(request).execute()
+    val body = response.body ?: throw Exception("Boş response")
+    val fileSize = body.contentLength()
+    var downloaded = 0L
+
+    body.byteStream().use { input ->
+        FileOutputStream(outputFile).use { output ->
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                output.write(buffer, 0, bytesRead)
+                downloaded += bytesRead
+                if (fileSize > 0) onProgress((downloaded * 100 / fileSize).toInt())
             }
         }
     }
+}
 
     private fun scanFile(file: File) {
         sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
