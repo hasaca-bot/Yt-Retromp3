@@ -38,7 +38,6 @@
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
                     android:textAppearance="@style/TextViewSubtitle1">
-
                     <requestFocus />
                 </com.google.android.material.textfield.TextInputEditText>
 
@@ -70,6 +69,7 @@
                 </FrameLayout>
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
+
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -126,20 +126,62 @@
                     android:layout_height="wrap_content"
                     android:text="@string/playlists" />
             </com.google.android.material.chip.ChipGroup>
-
         </HorizontalScrollView>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
-        android:id="@+id/recyclerView"
+    <!-- ANA İÇERİK - NestedScrollView içinde her iki liste -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:clipToPadding="false"
-        android:overScrollMode="@integer/overScrollMode"
-        android:scrollbarStyle="outsideOverlay"
-        android:scrollbars="vertical"
         android:paddingBottom="@dimen/mini_player_height"
-        app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior" />
+        android:clipToPadding="false"
+        app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Offline müzik sonuçları (mevcut) -->
+            <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:overScrollMode="@integer/overScrollMode"
+                android:scrollbarStyle="outsideOverlay"
+                android:scrollbars="vertical"
+                android:nestedScrollingEnabled="false" />
+
+            <!-- YouTube Music Sonuçları -->
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/tvYoutubeHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="YouTube Music"
+                android:textAppearance="@style/TextViewHeadline6"
+                android:paddingStart="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="4dp"
+                android:visibility="gone" />
+
+            <ProgressBar
+                android:id="@+id/youtubeProgressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvYoutubeResults"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@android:id/empty"
