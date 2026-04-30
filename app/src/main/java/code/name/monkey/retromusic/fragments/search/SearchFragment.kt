@@ -53,9 +53,12 @@ import java.util.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
-
 class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     ChipGroup.OnCheckedStateChangeListener {
+
+    // Kendi Oynatıcımız
+    private var mediaPlayer: android.media.MediaPlayer? = null
+
     companion object {
         const val QUERY = "query"
     }
@@ -153,14 +156,14 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     }
 
     private fun showData(data: List<Any>) {
-    if (data.isNotEmpty()) {
-        searchAdapter.swapDataSet(data)
-    } else {
-        searchAdapter.swapDataSet(ArrayList())
+        if (data.isNotEmpty()) {
+            searchAdapter.swapDataSet(data)
+        } else {
+            searchAdapter.swapDataSet(ArrayList())
+        }
+        binding.empty.isVisible = data.isEmpty() && 
+            !binding.searchView.text.isNullOrEmpty()
     }
-    binding.empty.isVisible = data.isEmpty() && 
-        !binding.searchView.text.isNullOrEmpty()
-}
 
     private fun checkForMargins() {
         if (mainActivity.isBottomNavVisible) {
@@ -203,10 +206,10 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         job?.cancel()
         job = libraryViewModel.search(query, filter)
         if (query.length >= 2) {
-        youtubeViewModel.search(query)
-    } else {
-        youtubeViewModel.clear()
-    }
+            youtubeViewModel.search(query)
+        } else {
+            youtubeViewModel.clear()
+        }
     }
 
     private fun getFilter(): Filter {
@@ -253,6 +256,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
 
     override fun onDestroyView() {
         hideKeyboard(view)
+        mediaPlayer?.release() // Hata koruması: Çıkarken oynatıcıyı kapat
         super.onDestroyView()
         _binding = null
     }
@@ -278,52 +282,67 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
 
     override fun onMenuItemSelected(menuItem: MenuItem) = false
 
-private fun setupYoutubeSearch() {
-    youtubeViewModel = ViewModelProvider(this)[YoutubeSearchViewModel::class.java]
-    youtubeAdapter = YoutubeSearchAdapter(
-        onPlay = { track -> playYoutubeTrack(track) },
-        onDownload = { track -> downloadYoutubeTrack(track) }
-    )
+    private fun setupYoutubeSearch() {
+        youtubeViewModel = ViewModelProvider(this)[YoutubeSearchViewModel::class.java]
+        youtubeAdapter = YoutubeSearchAdapter(
+            onPlay = { track -> playYoutubeTrack(track) },
+            onDownload = { track -> downloadYoutubeTrack(track) }
+        )
 
-    binding.rvYoutubeResults.apply {
-        adapter = youtubeAdapter
-        layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
-    }
+        binding.rvYoutubeResults.apply {
+            adapter = youtubeAdapter
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        }
 
-    youtubeViewModel.results.observe(viewLifecycleOwner) { tracks ->
-        youtubeAdapter.submitList(tracks)
-        binding.rvYoutubeResults.visibility =
-            if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
-        binding.tvYoutubeHeader.visibility =
-            if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
-    }
+        youtubeViewModel.results.observe(viewLifecycleOwner) { tracks ->
+            youtubeAdapter.submitList(tracks)
+            binding.rvYoutubeResults.visibility =
+                if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+            binding.tvYoutubeHeader.visibility =
+                if (tracks.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        }
 
-    youtubeViewModel.loading.observe(viewLifecycleOwner) { loading ->
-        binding.youtubeProgressBar.visibility =
-            if (loading) android.view.View.VISIBLE else android.view.View.GONE
-    }
-}
-
-private fun playYoutubeTrack(track: YoutubeTrack) {
-    Toast.makeText(requireContext(), "▶ Yükleniyor...", Toast.LENGTH_SHORT).show()
-    lifecycleScope.launch {
-        val streamUrl = YoutubeSearchService.getAudioStreamUrl(track.url)
-        if (streamUrl != null) {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(android.net.Uri.parse(streamUrl), "audio/*")
-            }
-            try {
-                startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Oynatıcı bulunamadı", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(requireContext(), "Stream alınamadı", Toast.LENGTH_SHORT).show()
+        youtubeViewModel.loading.observe(viewLifecycleOwner) { loading ->
+            binding.youtubeProgressBar.visibility =
+                if (loading) android.view.View.VISIBLE else android.view.View.GONE
         }
     }
-}
 
-private fun downloadYoutubeTrack(track: YoutubeTrack) {
+    private fun playYoutubeTrack(track: YoutubeTrack) {
+        Toast.makeText(requireContext(), "▶ Bağlanıyor: ${track.title}", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch {
+            try {
+                // İnternet işlemi kesinlikle arka planda (IO) yapılmalı!
+                val streamUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    YoutubeSearchService.getAudioStreamUrl(track.url)
+                }
+
+                if (!streamUrl.isNullOrEmpty()) {
+                    mediaPlayer?.release() // Önceki çalıyorsa durdur
+                    mediaPlayer = android.media.MediaPlayer().apply {
+                        setDataSource(streamUrl)
+                        prepareAsync() // Arayüz donmasın diye asenkron hazırla
+                        setOnPreparedListener {
+                            it.start()
+                            Toast.makeText(requireContext(), "🎶 Oynatılıyor!", Toast.LENGTH_SHORT).show()
+                        }
+                        setOnErrorListener { _, _, extra ->
+                            Toast.makeText(requireContext(), "❌ Oynatma Hatası ($extra)", Toast.LENGTH_SHORT).show()
+                            true
+                        }
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "❌ Ses bağlantısı bulunamadı", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(requireContext(), "❌ Hata: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun downloadYoutubeTrack(track: YoutubeTrack) {
         Toast.makeText(requireContext(), "⬇ İndiriliyor: ${track.title}", Toast.LENGTH_SHORT).show()
         code.name.monkey.retromusic.service.YoutubeDownloadService.startDownload(
             requireContext(), track
