@@ -37,7 +37,6 @@ import code.name.monkey.retromusic.extensions.*
 import code.name.monkey.retromusic.fragments.base.AbsMainActivityFragment
 import code.name.monkey.retromusic.util.PreferenceUtil
 import com.google.android.material.chip.Chip
-import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.textfield.TextInputEditText
@@ -311,25 +310,14 @@ private fun playYoutubeTrack(track: YoutubeTrack) {
     lifecycleScope.launch {
         val streamUrl = YoutubeSearchService.getAudioStreamUrl(track.url)
         if (streamUrl != null) {
-            MusicPlayerRemote.openAndShuffleQueue(
-                listOf(
-                    code.name.monkey.retromusic.model.Song(
-                        id = track.videoId.hashCode().toLong(),
-                        title = track.title,
-                        trackNumber = 0,
-                        year = 0,
-                        duration = track.duration * 1000,
-                        data = streamUrl,
-                        dateModified = 0,
-                        albumId = -1,
-                        albumName = "",
-                        artistId = -1,
-                        artistName = track.artist,
-                        composer = null,
-                        albumArtist = null
-                    )
-                ), true
-            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(android.net.Uri.parse(streamUrl), "audio/*")
+            }
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Oynatıcı bulunamadı", Toast.LENGTH_SHORT).show()
+            }
         } else {
             Toast.makeText(requireContext(), "Stream alınamadı", Toast.LENGTH_SHORT).show()
         }
