@@ -42,6 +42,12 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.transition.MaterialFadeThrough
 import kotlinx.coroutines.Job
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModelProvider
+import code.name.monkey.retromusic.adapter.YoutubeSearchAdapter
+import code.name.monkey.retromusic.network.YoutubeSearchService
+import code.name.monkey.retromusic.network.YoutubeTrack
+import android.widget.Toast
 import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent
 import java.util.*
 
@@ -59,6 +65,8 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     private var query: String? = null
 
     private var job: Job? = null
+    private lateinit var youtubeAdapter: YoutubeSearchAdapter
+    private lateinit var youtubeViewModel: YoutubeSearchViewModel
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -100,6 +108,8 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
             showData(it)
         }
         setupChips()
+        setupYoutubeSearch()
+        YoutubeSearchService.init()
         postponeEnterTransition()
         view.doOnPreDraw {
             startPostponedEnterTransition()
@@ -188,6 +198,11 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         val filter = getFilter()
         job?.cancel()
         job = libraryViewModel.search(query, filter)
+        if (query.length >= 2) {
+        youtubeViewModel.search(query)
+    } else {
+        youtubeViewModel.clear()
+    }
     }
 
     private fun getFilter(): Filter {
@@ -259,7 +274,27 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
 
     override fun onMenuItemSelected(menuItem: MenuItem) = false
 }
+private fun setupYoutubeSearch() {
+    youtubeViewModel = ViewModelProvider(this)[YoutubeSearchViewModel::class.java]
+    youtubeAdapter = YoutubeSearchAdapter(
+        onPlay = { track -> playYoutubeTrack(track) },
+        onDownload = { track -> downloadYoutubeTrack(track) }
+    )
+    youtubeViewModel.results.observe(viewLifecycleOwner) { tracks ->
+        youtubeAdapter.submitList(tracks)
+    }
+}
 
+private fun playYoutubeTrack(track: YoutubeTrack) {
+    Toast.makeText(requireContext(), "▶ ${track.title}", Toast.LENGTH_SHORT).show()
+}
+
+private fun downloadYoutubeTrack(track: YoutubeTrack) {
+    Toast.makeText(requireContext(), "⬇ İndiriliyor: ${track.title}", Toast.LENGTH_SHORT).show()
+    code.name.monkey.retromusic.service.YoutubeDownloadService.startDownload(
+        requireContext(), track
+    )
+}
 enum class Filter {
     SONGS,
     ARTISTS,
