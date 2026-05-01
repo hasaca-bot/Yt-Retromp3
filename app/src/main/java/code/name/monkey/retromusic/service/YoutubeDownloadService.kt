@@ -60,9 +60,15 @@ class YoutubeDownloadService : Service() {
         thumbnailUrl: String, videoUrl: String, notifId: Int
     ) {
         try {
-            val streamUrl = YoutubeSearchService.getAudioStreamUrl(videoUrl) ?: run {
-                showErrorNotification(title); return
-            }
+            val streamUrl = try {
+    YoutubeSearchService.getAudioStreamUrl(videoUrl)
+} catch (e: Exception) {
+    null
+}
+if (streamUrl == null) {
+    showErrorNotification(title)
+    return
+}
 
             val musicDir = File(
                 android.os.Environment.getExternalStoragePublicDirectory(
