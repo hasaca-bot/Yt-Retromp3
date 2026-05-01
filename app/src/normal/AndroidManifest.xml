@@ -2,17 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Temizlenmiş ve teke düşürülmüş izinler -->
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
-    <application tools:ignore="MissingApplicationIcon">
+    <!-- extractNativeLibs eklendi! -->
+    <application 
+        android:extractNativeLibs="true"
+        tools:ignore="MissingApplicationIcon">
+        
         <activity android:name=".activities.PurchaseActivity" />
 
         <meta-data
@@ -23,9 +25,10 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="code.name.monkey.retromusic.cast.CastOptionsProvider" />
+            
         <service
-    android:name=".service.YoutubeDownloadService"
-    android:foregroundServiceType="dataSync"
-    android:exported="false" />
+            android:name=".service.YoutubeDownloadService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
     </application>
 </manifest>
