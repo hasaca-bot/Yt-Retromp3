@@ -129,7 +129,6 @@
         </HorizontalScrollView>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- ANA İÇERİK - NestedScrollView içinde her iki liste -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -142,18 +141,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Offline müzik sonuçları (mevcut) -->
-            <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
-                android:id="@+id/recyclerView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipToPadding="false"
-                android:overScrollMode="@integer/overScrollMode"
-                android:scrollbarStyle="outsideOverlay"
-                android:scrollbars="vertical"
-                android:nestedScrollingEnabled="false" />
-
-            <!-- YouTube Music Sonuçları -->
+            <!-- YouTube Music Sonuçları - ÜSTTE -->
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/tvYoutubeHeader"
                 android:layout_width="match_parent"
@@ -179,6 +167,17 @@
                 android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
                 android:visibility="gone" />
+
+            <!-- Offline müzik sonuçları - ALTTA -->
+            <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:overScrollMode="@integer/overScrollMode"
+                android:scrollbarStyle="outsideOverlay"
+                android:scrollbars="vertical"
+                android:nestedScrollingEnabled="false" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
