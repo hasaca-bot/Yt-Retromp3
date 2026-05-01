@@ -114,7 +114,10 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         }
         setupChips()
         setupYoutubeSearch()
-        YoutubeSearchService.init()
+        
+        // DÜZELTİLEN KISIM BURASI
+        YoutubeSearchService.init(requireContext())
+        
         postponeEnterTransition()
         view.doOnPreDraw {
             startPostponedEnterTransition()
