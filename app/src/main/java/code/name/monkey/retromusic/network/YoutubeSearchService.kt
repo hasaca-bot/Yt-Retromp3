@@ -2,14 +2,8 @@ package code.name.monkey.retromusic.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.schabi.newpipe.extractor.NewPipe
-import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.downloader.Downloader
-import org.schabi.newpipe.extractor.downloader.Request
-import org.schabi.newpipe.extractor.downloader.Response
-import org.schabi.newpipe.extractor.search.SearchInfo
-import org.schabi.newpipe.extractor.stream.StreamInfo
-import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.json.JSONObject
+import org.json.JSONArray
 
 data class YoutubeTrack(
     val videoId: String,
@@ -22,88 +16,112 @@ data class YoutubeTrack(
 
 object YoutubeSearchService {
 
-    private var isInitialized = false
+    private val INVIDIOUS_INSTANCES = listOf(
+        "https://invidious.privacydev.net",
+        "https://yt.cdaut.de",
+        "https://invidious.nerdvpn.de"
+    )
 
     fun init() {
-        if (isInitialized) return
-
-        NewPipe.init(object : Downloader() {
-            private val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-
-            override fun execute(request: Request): Response {
-                val reqBuilder = okhttp3.Request.Builder().url(request.url())
-
-                request.headers().forEach { (key, list) ->
-                    list.forEach { reqBuilder.addHeader(key, it) }
-                }
-
-                reqBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-                reqBuilder.header("Accept-Language", "en-US,en;q=0.9")
-
-                val okHttpResponse = client.newCall(reqBuilder.build()).execute()
-                val body = okHttpResponse.body?.string() ?: ""
-
-                return Response(
-                    okHttpResponse.code,
-                    okHttpResponse.message,
-                    okHttpResponse.headers.toMultimap(),
-                    body,
-                    request.url()
-                )
-            }
-        })
-        isInitialized = true
+        // Invidious için init gerekmez
     }
 
     suspend fun search(query: String): List<YoutubeTrack> = withContext(Dispatchers.IO) {
-        try {
-            if (!isInitialized) init()
+        for (instance in INVIDIOUS_INSTANCES) {
+            try {
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                val url = "$instance/api/v1/search?q=$encodedQuery&type=video"
+                
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
 
-            val searchInfo = SearchInfo.getInfo(
-                ServiceList.YouTube,
-                ServiceList.YouTube.searchQHFactory.fromQuery(query)
-            )
-            val results = mutableListOf<YoutubeTrack>()
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0")
+                    .build()
 
-            for (item in searchInfo.relatedItems) {
-                if (item is StreamInfoItem) {
-                    val vidId = item.url.substringAfter("v=").substringBefore("&")
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) continue
+
+                val body = response.body?.string() ?: continue
+                val jsonArray = JSONArray(body)
+                val results = mutableListOf<YoutubeTrack>()
+
+                for (i in 0 until minOf(jsonArray.length(), 20)) {
+                    val item = jsonArray.getJSONObject(i)
+                    val videoId = item.optString("videoId") ?: continue
+                    val title = item.optString("title", "Unknown")
+                    val author = item.optString("author", "Unknown")
+                    val duration = item.optLong("lengthSeconds", 0L)
+
                     results.add(
                         YoutubeTrack(
-                            videoId = vidId,
-                            title = item.name,
-                            artist = item.uploaderName ?: "Unknown",
-                            duration = item.duration ?: 0L,
-                            thumbnailUrl = "https://i.ytimg.com/vi/$vidId/hqdefault.jpg",
-                            url = item.url
+                            videoId = videoId,
+                            title = title,
+                            artist = author,
+                            duration = duration,
+                            thumbnailUrl = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+                            url = "https://www.youtube.com/watch?v=$videoId"
                         )
                     )
                 }
+                if (results.isNotEmpty()) return@withContext results
+            } catch (e: Exception) {
+                e.printStackTrace()
+                continue
             }
-            results
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
         }
+        emptyList()
     }
 
     suspend fun getAudioStreamUrl(videoUrl: String): String? = withContext(Dispatchers.IO) {
-        try {
-            if (!isInitialized) init()
+        val videoId = videoUrl.substringAfter("v=").substringBefore("&")
+        
+        for (instance in INVIDIOUS_INSTANCES) {
+            try {
+                val url = "$instance/api/v1/videos/$videoId"
+                
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
 
-            val streamInfo = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0")
+                    .build()
 
-            val bestAudio = streamInfo.audioStreams
-                .filter { it.content != null && it.content.isNotEmpty() }
-                .maxByOrNull { it.bitrate }
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) continue
 
-            bestAudio?.content
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+                val body = response.body?.string() ?: continue
+                val json = JSONObject(body)
+                val adaptiveFormats = json.optJSONArray("adaptiveFormats") ?: continue
+
+                var bestUrl: String? = null
+                var bestBitrate = 0
+
+                for (i in 0 until adaptiveFormats.length()) {
+                    val format = adaptiveFormats.getJSONObject(i)
+                    val mimeType = format.optString("type", "")
+                    if (!mimeType.startsWith("audio")) continue
+                    
+                    val bitrate = format.optInt("bitrate", 0)
+                    val streamUrl = format.optString("url", "")
+                    
+                    if (bitrate > bestBitrate && streamUrl.isNotEmpty()) {
+                        bestBitrate = bitrate
+                        bestUrl = streamUrl
+                    }
+                }
+                if (bestUrl != null) return@withContext bestUrl
+            } catch (e: Exception) {
+                e.printStackTrace()
+                continue
+            }
         }
+        null
     }
 }
