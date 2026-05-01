@@ -165,7 +165,8 @@ dependencies {
 
     implementation(libs.chrisbanes.insetter)
 
-
+    implementation("com.github.yausername.youtubedl-android:library:0.17.+")
+    implementation("com.github.yausername.youtubedl-android:ffmpeg:0.17.+")
     implementation(libs.org.eclipse.egit.github.core)
     implementation(libs.jaudiotagger)
     implementation(libs.slidableactivity)
