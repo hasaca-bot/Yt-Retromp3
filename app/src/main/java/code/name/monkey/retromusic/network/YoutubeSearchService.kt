@@ -24,8 +24,9 @@ object YoutubeSearchService {
 
     suspend fun search(query: String): List<YoutubeTrack> = withContext(Dispatchers.IO) {
         try {
-            val youtube = ServiceList.YouTube
-            val searchExtractor = youtube.getSearchExtractor(query)
+            // ✅ SADECE BU SATIR DEĞİŞTİ: YouTube → SoundCloud
+            val soundCloud = ServiceList.SoundCloud
+            val searchExtractor = soundCloud.getSearchExtractor(query)
             searchExtractor.fetchPage()
 
             val results = mutableListOf<YoutubeTrack>()
@@ -33,7 +34,8 @@ object YoutubeSearchService {
                 if (item is StreamInfoItem) {
                     results.add(
                         YoutubeTrack(
-                            videoId = item.url.substringAfter("v=").substringBefore("&"),
+                            // SoundCloud URL'den ID çekme
+                            videoId = item.url.substringAfterLast("/"),
                             title = item.name,
                             artist = item.uploaderName ?: "Bilinmiyor",
                             thumbnailUrl = item.thumbnails.firstOrNull()?.url ?: "",
@@ -50,11 +52,13 @@ object YoutubeSearchService {
         }
     }
 
-    suspend fun getAudioStreamUrl(videoUrl: String): String? = withContext(Dispatchers.IO) {
+    suspend fun getAudioStreamUrl(trackUrl: String): String? = withContext(Dispatchers.IO) {
         try {
-            val streamInfo = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
+            // ✅ SADECE BU SATIR DEĞİŞTİ: YouTube → SoundCloud
+            val streamInfo = StreamInfo.getInfo(ServiceList.SoundCloud, trackUrl)
             streamInfo.audioStreams.maxByOrNull { it.averageBitrate }?.content
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }
