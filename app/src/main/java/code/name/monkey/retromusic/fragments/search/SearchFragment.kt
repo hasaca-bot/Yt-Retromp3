@@ -203,7 +203,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         val filter = getFilter()
         job?.cancel()
         job = libraryViewModel.search(query, filter)
-        if (query.length >= 3) {
+        if (query.length >= 2) {
             youtubeViewModel.search(query)
         } else {
             youtubeViewModel.clear()
