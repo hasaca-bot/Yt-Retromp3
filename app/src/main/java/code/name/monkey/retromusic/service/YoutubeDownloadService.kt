@@ -52,33 +52,34 @@ class YoutubeDownloadService : Service() {
         startForeground(startId, buildNotification(title, 0))
 
         serviceScope.launch {
-            downloadTrack(title, artist, thumbnail, url, startId)
+            // Hata buradaydı: Gereksiz parametreler çıkarıldı, sadece 3 tanesi gönderiliyor
+            downloadTrack(title, url, startId)
         }
         return START_NOT_STICKY
     }
 
     private suspend fun downloadTrack(title: String, videoUrl: String, notifId: Int) {
-    try {
-        val musicDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-            "RetroMusic/Downloads"
-        ).also { it.mkdirs() }
+        try {
+            val musicDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                "RetroMusic/Downloads"
+            ).also { it.mkdirs() }
 
-        YoutubeSearchService.downloadTrack(
-            context = this,
-            videoUrl = videoUrl,
-            outputDir = musicDir.absolutePath
-        ) { progress ->
-            notificationManager.notify(notifId, buildNotification(title, progress.toInt()))
+            YoutubeSearchService.downloadTrack(
+                context = this,
+                videoUrl = videoUrl,
+                outputDir = musicDir.absolutePath
+            ) { progress ->
+                notificationManager.notify(notifId, buildNotification(title, progress.toInt()))
+            }
+
+            scanFile(File(musicDir, "$title.mp3"))
+            showCompleteNotification(title)
+
+        } catch (e: Exception) {
+            showErrorNotification(title)
         }
-
-        scanFile(File(musicDir, "$title.mp3"))
-        showCompleteNotification(title)
-
-    } catch (e: Exception) {
-        showErrorNotification(title)
     }
-}
 
     private suspend fun downloadFile(
         url: String, outputFile: File, onProgress: (Int) -> Unit
