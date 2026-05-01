@@ -24,7 +24,7 @@ class YoutubeSearchViewModel : ViewModel() {
     private var searchJob: Job? = null
 
     fun search(query: String) {
-        if (query.length < 3) return
+        if (query.length < 2) return
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(800)
