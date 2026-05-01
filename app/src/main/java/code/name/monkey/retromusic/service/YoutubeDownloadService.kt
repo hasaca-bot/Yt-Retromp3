@@ -55,35 +55,28 @@ class YoutubeDownloadService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun downloadTrack(
-        title: String, artist: String,
-        thumbnailUrl: String, videoUrl: String, notifId: Int
-    ) {
-        try {
-            val streamUrl = YoutubeSearchService.getAudioStreamUrl(videoUrl) ?: run {
-                showErrorNotification(title); return
-            }
+    private suspend fun downloadTrack(title: String, videoUrl: String, notifId: Int) {
+    try {
+        val musicDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+            "RetroMusic/Downloads"
+        ).also { it.mkdirs() }
 
-            val musicDir = File(
-                android.os.Environment.getExternalStoragePublicDirectory(
-                    android.os.Environment.DIRECTORY_MUSIC
-                ), "RetroMusic/Downloads"
-            ).also { it.mkdirs() }
-
-            val safeTitle = title.replace(Regex("[^a-zA-Z0-9._\\- ]"), "_")
-            val outputFile = File(musicDir, "$safeTitle.m4a")
-
-            downloadFile(streamUrl, outputFile) { progress ->
-                notificationManager.notify(notifId, buildNotification(title, progress))
-            }
-
-            scanFile(outputFile)
-            showCompleteNotification(title)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            showErrorNotification(title)
+        YoutubeSearchService.downloadTrack(
+            context = this,
+            videoUrl = videoUrl,
+            outputDir = musicDir.absolutePath
+        ) { progress ->
+            notificationManager.notify(notifId, buildNotification(title, progress.toInt()))
         }
+
+        scanFile(File(musicDir, "$title.mp3"))
+        showCompleteNotification(title)
+
+    } catch (e: Exception) {
+        showErrorNotification(title)
     }
+}
 
     private suspend fun downloadFile(
         url: String, outputFile: File, onProgress: (Int) -> Unit
