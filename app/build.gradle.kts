@@ -69,7 +69,12 @@ android {
         viewBinding = true
         buildConfig = true
     }
+    
+    // YENİ EKLENEN KISIM BURASI (jniLibs.useLegacyPackaging = true)
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
         resources {
             excludes += listOf(
                 "META-INF/LICENSE",
@@ -78,6 +83,7 @@ android {
             )
         }
     }
+    
     lint {
         abortOnError = true
         warning.addAll(listOf("ImpliedQuantity", "Instantiatable", "MissingQuantity", "MissingTranslation", "StringFormatInvalid"))
@@ -97,7 +103,6 @@ android {
         resolutionStrategy.force("com.google.code.findbugs:jsr305:1.3.9")
     }
 }
-
 
 dependencies {
     implementation(project(":appthemehelper"))
@@ -135,8 +140,7 @@ dependencies {
     "normalImplementation"(libs.google.play.review)
     "normalImplementation"(libs.google.play.billing)
 
-
-            implementation(libs.android.material)
+    implementation(libs.android.material)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
