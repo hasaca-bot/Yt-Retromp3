@@ -42,7 +42,6 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.transition.MaterialFadeThrough
 import kotlinx.coroutines.Job
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
 import code.name.monkey.retromusic.adapter.YoutubeSearchAdapter
 import code.name.monkey.retromusic.network.YoutubeSearchService
@@ -52,11 +51,12 @@ import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent
 import java.util.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     ChipGroup.OnCheckedStateChangeListener {
 
-    // Kendi Oynatıcımız
     private var mediaPlayer: android.media.MediaPlayer? = null
 
     companion object {
@@ -142,12 +142,10 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
                 intArrayOf(-android.R.attr.state_checked),
                 intArrayOf(android.R.attr.state_checked)
             )
-
             val colors = intArrayOf(
                 android.R.color.transparent,
                 accentColor().addAlpha(0.5F)
             )
-
             chips.forEach {
                 it.chipBackgroundColor = ColorStateList(states, colors)
             }
@@ -161,7 +159,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         } else {
             searchAdapter.swapDataSet(ArrayList())
         }
-        binding.empty.isVisible = data.isEmpty() && 
+        binding.empty.isVisible = data.isEmpty() &&
             !binding.searchView.text.isNullOrEmpty()
     }
 
@@ -205,7 +203,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         val filter = getFilter()
         job?.cancel()
         job = libraryViewModel.search(query, filter)
-        if (query.length >= 2) {
+        if (query.length >= 3) {
             youtubeViewModel.search(query)
         } else {
             youtubeViewModel.clear()
@@ -256,7 +254,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
 
     override fun onDestroyView() {
         hideKeyboard(view)
-        mediaPlayer?.release() // Hata koruması: Çıkarken oynatıcıyı kapat
+        mediaPlayer?.release()
         super.onDestroyView()
         _binding = null
     }
@@ -264,12 +262,12 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     override fun onPause() {
         super.onPause()
         hideKeyboard(view)
+        mediaPlayer?.pause()
     }
 
     private fun hideKeyboard(view: View?) {
         if (view != null) {
-            val imm =
-                requireContext().getSystemService<InputMethodManager>()
+            val imm = requireContext().getSystemService<InputMethodManager>()
             imm?.hideSoftInputFromWindow(view.windowToken, 0)
         }
     }
@@ -291,7 +289,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
 
         binding.rvYoutubeResults.apply {
             adapter = youtubeAdapter
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+            layoutManager = LinearLayoutManager(requireContext())
         }
 
         youtubeViewModel.results.observe(viewLifecycleOwner) { tracks ->
@@ -309,20 +307,30 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     }
 
     private fun playYoutubeTrack(track: YoutubeTrack) {
-        Toast.makeText(requireContext(), "▶ Bağlanıyor: ${track.title}", Toast.LENGTH_SHORT).show()
-
+        Toast.makeText(requireContext(), "▶ Bağlanıyor...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             try {
-                // İnternet işlemi kesinlikle arka planda (IO) yapılmalı!
-                val streamUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val streamUrl = withContext(Dispatchers.IO) {
                     YoutubeSearchService.getAudioStreamUrl(track.url)
                 }
-
                 if (!streamUrl.isNullOrEmpty()) {
-                    mediaPlayer?.release() // Önceki çalıyorsa durdur
+                    mediaPlayer?.release()
                     mediaPlayer = android.media.MediaPlayer().apply {
-                        setDataSource(streamUrl)
-                        prepareAsync() // Arayüz donmasın diye asenkron hazırla
+                        setDataSource(
+                            requireContext(),
+                            android.net.Uri.parse(streamUrl),
+                            mapOf(
+                                "User-Agent" to "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Chrome/90.0",
+                                "Referer" to "https://www.youtube.com/"
+                            )
+                        )
+                        setAudioAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .build()
+                        )
+                        prepareAsync()
                         setOnPreparedListener {
                             it.start()
                             Toast.makeText(requireContext(), "🎶 Oynatılıyor!", Toast.LENGTH_SHORT).show()
