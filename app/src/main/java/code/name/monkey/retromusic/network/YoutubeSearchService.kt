@@ -4,6 +4,7 @@ import android.content.Context
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.net.URL
@@ -21,8 +22,15 @@ data class YoutubeTrack(
 object YoutubeSearchService {
 
     fun init(context: Context) {
-        YoutubeDL.getInstance().init(context)
-        YoutubeDL.getInstance().updateYoutubeDL(context) // güncel tut
+        // Ağ işlemlerini ana akıştan (Main Thread) çıkartıp arka plana (IO) alıyoruz
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            try {
+                YoutubeDL.getInstance().init(context)
+                YoutubeDL.getInstance().updateYoutubeDL(context) // güncel tut
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     suspend fun search(query: String): List<YoutubeTrack> = withContext(Dispatchers.IO) {
