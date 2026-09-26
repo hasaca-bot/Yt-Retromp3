@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -26,3 +28,21 @@ jobs:
         with:
           name: RetroMusic-Debug
           path: app/build/outputs/apk/normal/debug/app-normal-debug.apk
+
+      - name: Publish APK to delivery branch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -e
+          APK_PATH=app/build/outputs/apk/normal/debug/app-normal-debug.apk
+          rm -rf /tmp/apk-delivery
+          mkdir -p /tmp/apk-delivery
+          cp "$APK_PATH" /tmp/apk-delivery/RetroMusic-Debug.apk
+          cd /tmp/apk-delivery
+          git init -q
+          git checkout -q -b apk-delivery
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git add RetroMusic-Debug.apk
+          git commit -q -m "APK build from ${{ github.sha }}"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f origin apk-delivery
