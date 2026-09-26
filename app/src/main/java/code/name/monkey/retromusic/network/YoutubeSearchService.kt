@@ -1,9 +1,16 @@
 package code.name.monkey.retromusic.network
 
+import code.name.monkey.retromusic.network.potoken.NewPipePoTokenGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import org.json.JSONArray
+import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
+import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
+import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class YoutubeTrack(
     val videoId: String,
@@ -14,114 +21,99 @@ data class YoutubeTrack(
     val url: String
 )
 
+data class YoutubeAudioStream(
+    val url: String,
+    val mimeType: String,
+    val fileExtension: String
+)
+
+/**
+ * Online YouTube search/metadata/stream-extraction, mirroring the approach used by ytdlnis
+ * (NewPipeExtractor for search + stream resolution, with a WebView-based BotGuard PoToken
+ * generator so googlevideo stream URLs keep working after YouTube's anti-bot changes).
+ */
 object YoutubeSearchService {
 
-    private val INVIDIOUS_INSTANCES = listOf(
-        "https://invidious.privacydev.net",
-        "https://yt.cdaut.de",
-        "https://invidious.nerdvpn.de"
-    )
+    private val initialized = AtomicBoolean(false)
 
     fun init() {
-        // Invidious için init gerekmez
+        if (initialized.getAndSet(true)) return
+        NewPipe.init(DownloaderImpl.getInstance())
+        YoutubeStreamExtractor.setPoTokenProvider(NewPipePoTokenGenerator())
     }
 
     suspend fun search(query: String): List<YoutubeTrack> = withContext(Dispatchers.IO) {
-        for (instance in INVIDIOUS_INSTANCES) {
-            try {
-                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                val url = "$instance/api/v1/search?q=$encodedQuery&type=video"
-                
-                val client = okhttp3.OkHttpClient.Builder()
-                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                    .build()
-
-                val request = okhttp3.Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .build()
-
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) continue
-
-                val body = response.body?.string() ?: continue
-                val jsonArray = JSONArray(body)
-                val results = mutableListOf<YoutubeTrack>()
-
-                for (i in 0 until minOf(jsonArray.length(), 20)) {
-                    val item = jsonArray.getJSONObject(i)
-                    val videoId = item.optString("videoId") ?: continue
-                    val title = item.optString("title", "Unknown")
-                    val author = item.optString("author", "Unknown")
-                    val duration = item.optLong("lengthSeconds", 0L)
-
-                    results.add(
-                        YoutubeTrack(
-                            videoId = videoId,
-                            title = title,
-                            artist = author,
-                            duration = duration,
-                            thumbnailUrl = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
-                            url = "https://www.youtube.com/watch?v=$videoId"
-                        )
-                    )
-                }
-                if (results.isNotEmpty()) return@withContext results
-            } catch (e: Exception) {
-                e.printStackTrace()
-                continue
-            }
+        init()
+        try {
+            val youtubeService = NewPipe.getService(ServiceList.YouTube.serviceId)
+            val searchInfo = SearchInfo.getInfo(
+                youtubeService,
+                youtubeService.searchQHFactory.fromQuery(
+                    query,
+                    listOf(YoutubeSearchQueryHandlerFactory.VIDEOS),
+                    ""
+                )
+            )
+            searchInfo.relatedItems
+                .filterIsInstance<StreamInfoItem>()
+                .filter { it.duration > 0 }
+                .mapNotNull { toTrack(it) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
         }
-        emptyList()
     }
 
-    suspend fun getAudioStreamUrl(videoUrl: String): String? = withContext(Dispatchers.IO) {
-        val videoId = videoUrl.substringAfter("v=").substringBefore("&")
-        
-        for (instance in INVIDIOUS_INSTANCES) {
-            try {
-                val url = "$instance/api/v1/videos/$videoId"
-                
-                val client = okhttp3.OkHttpClient.Builder()
-                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                    .build()
-
-                val request = okhttp3.Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .build()
-
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) continue
-
-                val body = response.body?.string() ?: continue
-                val json = JSONObject(body)
-                val adaptiveFormats = json.optJSONArray("adaptiveFormats") ?: continue
-
-                var bestUrl: String? = null
-                var bestBitrate = 0
-
-                for (i in 0 until adaptiveFormats.length()) {
-                    val format = adaptiveFormats.getJSONObject(i)
-                    val mimeType = format.optString("type", "")
-                    if (!mimeType.startsWith("audio")) continue
-                    
-                    val bitrate = format.optInt("bitrate", 0)
-                    val streamUrl = format.optString("url", "")
-                    
-                    if (bitrate > bestBitrate && streamUrl.isNotEmpty()) {
-                        bestBitrate = bitrate
-                        bestUrl = streamUrl
-                    }
-                }
-                if (bestUrl != null) return@withContext bestUrl
-            } catch (e: Exception) {
-                e.printStackTrace()
-                continue
-            }
+    private fun toTrack(item: StreamInfoItem): YoutubeTrack? {
+        return try {
+            val videoId = extractVideoId(item.url) ?: return null
+            YoutubeTrack(
+                videoId = videoId,
+                title = item.name ?: "Unknown",
+                artist = item.uploaderName?.removeSuffix(" - Topic") ?: "Unknown",
+                duration = item.duration,
+                thumbnailUrl = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+                url = item.url
+            )
+        } catch (e: Exception) {
+            null
         }
-        null
     }
+
+    private fun extractVideoId(url: String): String? {
+        return when {
+            url.contains("v=") -> url.substringAfter("v=").substringBefore("&")
+            url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
+            else -> null
+        }.takeUnless { it.isNullOrBlank() }
+    }
+
+    /**
+     * Resolves the best playable/downloadable audio-only stream for a video url.
+     * Prefers an m4a/aac container for maximum device compatibility, falling back to
+     * whichever audio format has the highest bitrate.
+     */
+    suspend fun getAudioStream(videoUrl: String): YoutubeAudioStream? = withContext(Dispatchers.IO) {
+        init()
+        try {
+            val streamInfo = StreamInfo.getInfo(videoUrl)
+            val candidates = streamInfo.audioStreams
+                ?.filter { !it.content.isNullOrBlank() && it.bitrate > 0 && it.itag !in listOf(599, 600) }
+                ?.sortedByDescending { it.bitrate }
+                ?: emptyList()
+            if (candidates.isEmpty()) return@withContext null
+
+            val best = candidates.firstOrNull { it.format?.suffix == "m4a" } ?: candidates.first()
+            YoutubeAudioStream(
+                url = best.content!!,
+                mimeType = best.format?.mimeType ?: "audio/mp4",
+                fileExtension = best.format?.suffix ?: "m4a"
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun getAudioStreamUrl(videoUrl: String): String? = getAudioStream(videoUrl)?.url
 }

@@ -127,6 +127,7 @@ androidx-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", ver
 [plugins]
 android-application = { id = "com.android.application", version.ref = "gradle" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinGradlePlugin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinGradlePlugin" }
 androidx-navigation-safeargs = { id = "androidx.navigation.safeargs.kotlin", version.ref = "navigation_version" }
 github-ben-manes = { id = "com.github.ben-manes.versions", version.ref = "ben_manes_versoin" }
 google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "devTools_ksp_version" }

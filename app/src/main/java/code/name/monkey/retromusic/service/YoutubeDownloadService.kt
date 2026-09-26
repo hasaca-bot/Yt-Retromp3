@@ -3,15 +3,25 @@ package code.name.monkey.retromusic.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
+import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import code.name.monkey.retromusic.network.YoutubeSearchService
 import code.name.monkey.retromusic.network.YoutubeTrack
 import kotlinx.coroutines.*
-import java.io.*
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.images.AndroidArtwork
+import java.io.File
+import java.io.FileOutputStream
 
 class YoutubeDownloadService : Service() {
 
@@ -28,7 +38,7 @@ class YoutubeDownloadService : Service() {
                 putExtra("thumbnail", track.thumbnailUrl)
                 putExtra("url", track.url)
             }
-            context.startService(intent)
+            ContextCompat.startForegroundService(context, intent)
         }
     }
 
@@ -58,36 +68,115 @@ class YoutubeDownloadService : Service() {
         title: String, artist: String,
         thumbnailUrl: String, videoUrl: String, notifId: Int
     ) {
+        var tempAudioFile: File? = null
+        var tempArtFile: File? = null
         try {
-            val streamUrl = try {
-                YoutubeSearchService.getAudioStreamUrl(videoUrl)
-            } catch (e: Exception) {
-                null
-            }
-            if (streamUrl == null) {
+            val stream = YoutubeSearchService.getAudioStream(videoUrl)
+            if (stream == null) {
                 showErrorNotification(title)
                 return
             }
 
-            val musicDir = File(
-                android.os.Environment.getExternalStoragePublicDirectory(
-                    android.os.Environment.DIRECTORY_MUSIC
-                ), "RetroMusic/Downloads"
-            ).also { it.mkdirs() }
+            val safeTitle = title.replace(Regex("[^a-zA-Z0-9._\\- ]"), "_").ifBlank { "track" }
+            tempAudioFile = File(cacheDir, "yt_dl_${notifId}.${stream.fileExtension}")
 
-            val safeTitle = title.replace(Regex("[^a-zA-Z0-9._\\- ]"), "_")
-            val outputFile = File(musicDir, "$safeTitle.m4a")
-
-            downloadFile(streamUrl, outputFile) { progress ->
+            downloadFile(stream.url, tempAudioFile) { progress ->
                 notificationManager.notify(notifId, buildNotification(title, progress))
             }
 
-            scanFile(outputFile)
+            tempArtFile = runCatching { downloadThumbnail(thumbnailUrl, notifId) }.getOrNull()
+            tagAudioFile(tempAudioFile, title, artist, tempArtFile)
+
+            val fileName = "$safeTitle.${stream.fileExtension}"
+            val inserted = insertIntoMediaStore(fileName, stream.mimeType, tempAudioFile)
+            if (!inserted) {
+                showErrorNotification(title)
+                return
+            }
+
             showCompleteNotification(title)
         } catch (e: Exception) {
             e.printStackTrace()
             showErrorNotification(title)
+        } finally {
+            tempAudioFile?.delete()
+            tempArtFile?.delete()
         }
+    }
+
+    private fun tagAudioFile(file: File, title: String, artist: String, artFile: File?) {
+        try {
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tagOrCreateAndSetDefault
+            tag.setField(FieldKey.TITLE, title)
+            tag.setField(FieldKey.ARTIST, artist)
+            tag.setField(FieldKey.ALBUM, "YouTube")
+            if (artFile != null) {
+                try {
+                    tag.deleteArtworkField()
+                    tag.setField(AndroidArtwork.createArtworkFromFile(artFile))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            audioFile.commit()
+        } catch (e: Exception) {
+            // Not every container (e.g. opus/webm) is supported for tagging;
+            // keep the raw downloaded audio in that case instead of failing the download.
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun downloadThumbnail(url: String, notifId: Int): File? = withContext(Dispatchers.IO) {
+        if (url.isBlank()) return@withContext null
+        val client = okhttp3.OkHttpClient.Builder().build()
+        val request = okhttp3.Request.Builder().url(url).build()
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) return@withContext null
+        val body = response.body ?: return@withContext null
+        val file = File(cacheDir, "yt_dl_art_${notifId}.jpg")
+        body.byteStream().use { input ->
+            FileOutputStream(file).use { output -> input.copyTo(output) }
+        }
+        file
+    }
+
+    private fun insertIntoMediaStore(fileName: String, mimeType: String, sourceFile: File): Boolean {
+        val resolver = contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+            put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+            put(MediaStore.Audio.Media.IS_MUSIC, 1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/RetroMusic")
+                put(MediaStore.Audio.Media.IS_PENDING, 1)
+            }
+        }
+
+        val destFile: File? = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val musicDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                "RetroMusic"
+            ).also { it.mkdirs() }
+            File(musicDir, fileName).also { values.put(MediaStore.Audio.Media.DATA, it.absolutePath) }
+        } else null
+
+        val uri: Uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return false
+
+        resolver.openOutputStream(uri)?.use { output ->
+            sourceFile.inputStream().use { input -> input.copyTo(output) }
+        } ?: return false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val update = ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }
+            resolver.update(uri, update, null, null)
+        }
+
+        destFile?.let {
+            MediaScannerConnection.scanFile(this, arrayOf(it.absolutePath), arrayOf(mimeType), null)
+        }
+        return true
     }
 
     private suspend fun downloadFile(
@@ -103,9 +192,6 @@ class YoutubeDownloadService : Service() {
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36")
             .header("Accept", "*/*")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Referer", "https://www.youtube.com/")
-            .header("Origin", "https://www.youtube.com")
             .build()
 
         val response = client.newCall(request).execute()
@@ -126,12 +212,6 @@ class YoutubeDownloadService : Service() {
                 }
             }
         }
-    }
-
-    private fun scanFile(file: File) {
-        sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
-            data = android.net.Uri.fromFile(file)
-        })
     }
 
     private fun createNotificationChannel() {
