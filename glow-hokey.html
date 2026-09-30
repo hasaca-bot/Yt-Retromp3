@@ -143,7 +143,7 @@ if(!running)return;paused=p;pm.classList.toggle('hide',!p);touches={};
 }
 
 /* ---------- gol tekrarı ---------- */
-function rec(){buf.push([simT,puck.x,puck.y,pA.x,pA.y,pB.x,pB.y]);while(buf.length>2&&simT-buf[0][0]>1.4)buf.shift()}
+function rec(){buf.push([simT,puck.x,puck.y,pA.x,pA.y,pB.x,pB.y,puck.a]);while(buf.length>2&&simT-buf[0][0]>1.4)buf.shift()}
 function startReplay(b){var f=buf.slice();pendSide=b;touches={};replay={f:f,i:0,t:f[0][0],end:f[f.length-1][0],hold:.9,label:tLabel}}
 function endReplay(){replay=null;afterGoal(pendSide)}
 function stepReplay(dt){
@@ -154,7 +154,7 @@ while(r.i<f.length-2&&f[r.i+1][0]<=r.t)r.i++;
 var a=f[r.i],c=f[r.i+1],u=c[0]>a[0]?clamp((r.t-a[0])/(c[0]-a[0]),0,1):1;
 puck.x=a[1]+(c[1]-a[1])*u;puck.y=a[2]+(c[2]-a[2])*u;
 pA.x=a[3]+(c[3]-a[3])*u;pA.y=a[4]+(c[4]-a[4])*u;
-pB.x=a[5]+(c[5]-a[5])*u;pB.y=a[6]+(c[6]-a[6])*u;
+pB.x=a[5]+(c[5]-a[5])*u;pB.y=a[6]+(c[6]-a[6])*u;puck.a=a[7]+(c[7]-a[7])*u;
 trail=[];for(var k=Math.max(0,r.i-9);k<=r.i;k++)trail.push({x:f[k][1],y:f[k][2]});
 }
 
@@ -281,7 +281,7 @@ for(var i=0;i<n;i++){
 stepM(pB,h);stepM(pA,h);
 if(serveT>0){continue}
 var f=Math.pow(.72,h);
-var mg=puck.w*.075*h,ovx=puck.vx;puck.vx+=-puck.vy*mg;puck.vy+=ovx*mg;puck.a+=puck.w*h;puck.w*=Math.pow(.55,h);
+var mg=puck.w*.075*h,ovx=puck.vx;puck.vx+=-puck.vy*mg;puck.vy+=ovx*mg;puck.a+=puck.w*h;puck.w*=Math.pow(.75,h);
 puck.x+=puck.vx*h;puck.y+=puck.vy*h;puck.vx*=f;puck.vy*=f;
 post(gx1,0);post(gx2,0);post(gx1,FH);post(gx2,FH);
 if(puck.x<r){puck.x=r;puck.vx=Math.abs(puck.vx)*.94;wallSnd()}
@@ -361,7 +361,7 @@ ctx.fillStyle='#fff';
 for(var i=0;i<trail.length;i++){ctx.globalAlpha=i/trail.length*.35;ctx.beginPath();ctx.arc(trail[i].x,trail[i].y,puck.r*(i/trail.length),0,7);ctx.fill()}
 ctx.globalAlpha=serveT>0?.5+.5*Math.sin(serveT*20):1;
 spr(SP.puck,puck.x,puck.y);ctx.globalAlpha=1;
-ctx.strokeStyle='#ff2e93';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(puck.x,puck.y);ctx.lineTo(puck.x+Math.cos(puck.a)*puck.r*.85,puck.y+Math.sin(puck.a)*puck.r*.85);ctx.stroke();
+{var ca=Math.cos(puck.a)*puck.r*.8,sa=Math.sin(puck.a)*puck.r*.8;ctx.lineCap='round';ctx.strokeStyle='#ff2e93';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(puck.x-ca,puck.y-sa);ctx.lineTo(puck.x+ca,puck.y+sa);ctx.stroke();ctx.fillStyle='#19f0ff';ctx.beginPath();ctx.arc(puck.x+ca,puck.y+sa,6,0,7);ctx.fill()}
 spr(SP.mA,pA.x,pA.y);spr(SP.mB,pB.x,pB.y);
 if(replay){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.textAlign='center';ctx.fillStyle='#ffe14a';ctx.font='700 17px "Trebuchet MS",sans-serif';ctx.fillText('● GOL TEKRARI',W/2,oy-28);ctx.font='12px "Trebuchet MS",sans-serif';ctx.fillStyle='#e8f4ff';ctx.fillText('atlamak için dokun',W/2,oy-11);if(replay.label){ctx.font='700 30px "Trebuchet MS",sans-serif';ctx.fillStyle='#ff2e93';ctx.fillText(replay.label,W/2,oy+FH*sc*.5+10)}}
 if(flash>0){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalAlpha=flash*.28;ctx.fillStyle=flashC;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}
