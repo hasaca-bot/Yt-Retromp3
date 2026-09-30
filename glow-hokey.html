@@ -118,6 +118,7 @@ puck.x=FW/2;puck.y=side===1?FH*.3:side===2?FH*.7:FH/2;puck.vx=puck.vy=0;puck.w=0
 
 }
 function start(m){
+pA.ai=pB.ai=false;
 unlock();mode=m;scoreA=scoreB=0;touches={};replay=null;simT=0;resetMallets();resetPuck(0);if(mode>=3)launch=Math.random()<.5?-1:1;
 menu.classList.add('hide');pm.classList.add('hide');running=true;paused=false;
 }
@@ -185,7 +186,7 @@ function resetAI(){aiA=mkAI();aiB=mkAI()}
 /* Yapay zeka her zaman "üst" oyuncu gibi düşünür; alttaki için saha aynalanır. */
 function decide(P,ai,m,p){
 var spd=Math.hypot(p.vx,p.vy),half=FH/2;ai.sp=1;
-if(p.y<half-4*S&&spd<P.hitSpd){
+if(p.y<half-4*S&&spd<P.hitSpd&&!(p.vy<-30*S&&p.y<half*.9)){
 if(P.trick&&ai.roll){ai.roll=false;var rr=Math.random();ai.tk=rr<.3?0:rr<.55?1:rr<.8?2:rr<.9?3:4}
 var gx0=FW/2+ai.err*1.2,dx=0,dy=0,l=1;
 /* trickshot: hedefi yan duvar(lar)a göre aynalayıp diski duvardan sektirerek kaleye yollar */
@@ -206,13 +207,25 @@ ai.tx=tx;ai.ty=defY;
 }
 }
 function think(ai,m,side,P,dt){
+m.ai=true;
 var s=side==='B';
 var p=s?{x:FW-puck.x,y:FH-puck.y,vx:-puck.vx,vy:-puck.vy}:puck;
 var mm=s?{x:FW-m.x,y:FH-m.y}:m;
 ai.t-=dt;ai.et-=dt;
 if(ai.et<=0){ai.err=(Math.random()*2-1)*P.err;ai.et=.5+Math.random()*.5}
 if(ai.t<=0){ai.t=P.react*(1+(P.lag||0)*Math.hypot(puck.vx,puck.vy)/(900*S));decide(P,ai,mm,p)}
-var dx=ai.tx-ai.cx,dy=ai.ty-ai.cy,d=Math.hypot(dx,dy);
+var tx=ai.tx,ty=ai.ty;
+/* kendi kalesine gol önleme: tokmak topun ön tarafındaysa (top ile kale arasında değil) topun yanından dolaşarak git, topa yandan çarpıp kaleye sokma */
+if(ai.cy>p.y+15*S){
+var sx=tx-ai.cx,sy=ty-ai.cy,sl=sx*sx+sy*sy;
+if(sl>1){
+var q=clamp(((p.x-ai.cx)*sx+(p.y-ai.cy)*sy)/sl,0,1),qx=ai.cx+sx*q-p.x,qy=ai.cy+sy*q-p.y,R=MR+PR+8*S;
+if(qx*qx+qy*qy<R*R){
+var side=Math.abs(ai.cx-p.x)<10*S?(p.x<FW/2?1:-1):(ai.cx<p.x?-1:1),wx=p.x+side*(R+6*S);
+if(wx<MR||wx>FW-MR)wx=p.x-side*(R+6*S);
+tx=clamp(wx,MR,FW-MR);ty=p.y;
+}}}
+var dx=tx-ai.cx,dy=ty-ai.cy,d=Math.hypot(dx,dy);
 if(d>.5){var st=Math.min(d,P.speed*ai.sp*dt);ai.cx+=dx/d*st;ai.cy+=dy/d*st}
 ai.cx=clamp(ai.cx,MR,FW-MR);ai.cy=clamp(ai.cy,MR,FH/2-MR);
 m.tx=s?FW-ai.cx:ai.cx;m.ty=s?FH-ai.cy:ai.cy;
@@ -256,12 +269,14 @@ if(n-lastSnd>60){lastSnd=n;beep(120,.09,'sawtooth',.06)}
 function hit(m){
 var dx=puck.x-m.x,dy=puck.y-m.y,d=Math.hypot(dx,dy),mr=m.r+puck.r;
 if(d>=mr)return;
+/* bilgisayar tokmağı, kendi kalesi tarafında kalan topa vurup kendi kalesine sokmaz: içinden geçer (gol rakibe yazılır) */
+if(m.ai&&(m===pA?puck.y<m.y+mr*.2:puck.y>m.y-mr*.2))return;
 if(d<.001){dx=0;dy=m===pA?1:-1;d=1}
 var nx=dx/d,ny=dy/d;
 puck.x=m.x+nx*mr;puck.y=m.y+ny*mr;
 var rv=(puck.vx-m.vx)*nx+(puck.vy-m.vy)*ny;
 if(rv<0){puck.vx-=1.9*rv*nx;puck.vy-=1.9*rv*ny;wb=0;
-var vt=(m.vx-puck.vx)*(-ny)+(m.vy-puck.vy)*nx;puck.w=clamp(puck.w*.4+vt*.012,-45,45);if(mode===4)(m===pA?aiA:aiB).roll=true;
+var vt=(m.vx-puck.vx)*(-ny)+(m.vy-puck.vy)*nx;puck.w=clamp(puck.w*.4+vt*(m.ai?.002:.012),-45,45);if(mode===4)(m===pA?aiA:aiB).roll=true;
 if(mode>=3){hits++;var s0=Math.hypot(puck.vx,puck.vy),want=Math.max(s0*(mode===4?1.06:1.03),((mode===4?600:400)+hits*(mode===4?60:35))*S);if(s0>1){puck.vx*=want/s0;puck.vy*=want/s0}else{puck.vx=nx*want;puck.vy=ny*want}}
 var sp=Math.hypot(puck.vx,puck.vy),cap=mode>=3?Infinity:MAXP;if(sp>cap){puck.vx*=cap/sp;puck.vy*=cap/sp}
 beep(300+Math.min(sp/S,1200)/3,.08,'triangle',.08)}
