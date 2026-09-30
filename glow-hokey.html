@@ -80,15 +80,16 @@ var LV=[
 function clamp(v,a,b){return v<a?a:v>b?b:v}
 
 /* ---------- harita: duvarlar ve hızlandırıcılar (sağ-sol ve alt-üst simetrik) ---------- */
-var WALLS=[
-{x:FW*.24,y:FH*.36,r:58,glow:0},{x:FW*.76,y:FH*.36,r:58,glow:0},
-{x:FW*.24,y:FH*.64,r:58,glow:0},{x:FW*.76,y:FH*.64,r:58,glow:0},
-{x:FW*.5,y:FH*.43,r:44,glow:0},{x:FW*.5,y:FH*.57,r:44,glow:0}
-];
-var BOOSTS=[
-{x:FW*.5,y:FH*.235,r:46,glow:0},{x:FW*.5,y:FH*.765,r:46,glow:0},
-{x:FW*.14,y:FH*.5,r:46,glow:0},{x:FW*.86,y:FH*.5,r:46,glow:0}
-];
+/* Kare ızgara: 3 sütun x 5 satır, dama tahtası gibi dönüşümlü duvar / hızlandırıcı (orta nokta boş) */
+var WALLS=[],BOOSTS=[],OR=30;
+(function(){
+var cols=[FW*.275,FW*.5,FW*.725],gap=FH*.14;
+for(var r=-2;r<=2;r++)for(var c=0;c<3;c++){
+if(r===0&&c===1)continue;
+var o={x:cols[c],y:FH/2+r*gap,r:OR,glow:0};
+((r+2+c)%2===0?WALLS:BOOSTS).push(o);
+}
+})();
 
 /* ---------- ses ---------- */
 var actx=null;
@@ -310,9 +311,9 @@ if(inner){g.shadowBlur=0;g.fillStyle=color;g.beginPath();g.arc(0,0,r*inner,0,7);
 c.pad=pad;c.r=r;return c;
 }
 function boostSprite(r,hot){
-var c=glowSprite(r,hot?'#b6ffcc':'#3dff7a',hot?'rgba(61,255,122,.5)':'rgba(61,255,122,.16)',6,hot?34:18,0),g=c.getContext('2d'),k=sc*DPR;
-g.setTransform(k,0,0,k,c.width/2,c.height/2);g.shadowBlur=0;g.strokeStyle=hot?'#fff':'#3dff7a';g.lineWidth=6;g.lineCap='round';g.lineJoin='round';
-g.beginPath();for(var i=0;i<2;i++){var yy=-8+i*20;g.moveTo(-18,yy+9);g.lineTo(0,yy-8);g.lineTo(18,yy+9)}g.stroke();
+var c=glowSprite(r,hot?'#d8ffe4':'#3dff7a',hot?'#8dffb0':'#2fdc68',4,hot?30:16,0),g=c.getContext('2d'),k=sc*DPR;
+g.setTransform(k,0,0,k,c.width/2,c.height/2);g.shadowBlur=0;g.strokeStyle='#06230f';g.lineWidth=5;g.lineCap='round';g.lineJoin='round';
+g.beginPath();for(var i=0;i<2;i++){var yy=-7+i*12;g.moveTo(-11,yy+6);g.lineTo(0,yy-5);g.lineTo(11,yy+6)}g.stroke();
 return c;
 }
 function buildSprites(){
@@ -320,8 +321,8 @@ SP.puck=glowSprite(PR,'#ffffff','#ffffff',1,22,0);
 SP.mA=glowSprite(MR,'#ff2e93','#ff2e9355',7,26,.4);
 SP.mB=glowSprite(MR,'#19f0ff','#19f0ff55',7,26,.4);
 SP.w={};SP.wh={};
-for(var i=0;i<WALLS.length;i++){var r=WALLS[i].r;if(!SP.w[r]){SP.w[r]=glowSprite(r,'#a86bff','rgba(168,107,255,.2)',6,18,.25);SP.wh[r]=glowSprite(r,'#e2ccff','rgba(168,107,255,.55)',6,34,.25)}}
-SP.b=boostSprite(46,false);SP.bh=boostSprite(46,true);
+for(var i=0;i<WALLS.length;i++){var r=WALLS[i].r;if(!SP.w[r]){SP.w[r]=glowSprite(r,'#b07dff','#8a4dff',4,16,0);SP.wh[r]=glowSprite(r,'#f0e4ff','#c9a8ff',4,30,0)}}
+SP.b=boostSprite(OR,false);SP.bh=boostSprite(OR,true);
 /* sabit arka plan */
 BG=document.createElement('canvas');BG.width=Math.max(1,Math.round(W*DPR));BG.height=Math.max(1,Math.round(H*DPR));
 var g=BG.getContext('2d'),k=sc*DPR,g1=(FW-GW)/2,g2=g1+GW;
