@@ -80,14 +80,14 @@ var LV=[
 function clamp(v,a,b){return v<a?a:v>b?b:v}
 
 /* ---------- harita: duvarlar ve hızlandırıcılar (sağ-sol ve alt-üst simetrik) ---------- */
-/* Kare ızgara: 3 sütun x 5 satır, dama tahtası gibi dönüşümlü duvar / hızlandırıcı (orta nokta boş) */
+/* Kare ızgara: 3 sütun x 3 satır, dama tahtası gibi dönüşümlü duvar / hızlandırıcı (orta nokta boş) */
 var WALLS=[],BOOSTS=[],OR=30;
 (function(){
-var cols=[FW*.275,FW*.5,FW*.725],gap=FH*.14;
-for(var r=-2;r<=2;r++)for(var c=0;c<3;c++){
+var cols=[FW*.275,FW*.5,FW*.725],gap=FH*.15;
+for(var r=-1;r<=1;r++)for(var c=0;c<3;c++){
 if(r===0&&c===1)continue;
 var o={x:cols[c],y:FH/2+r*gap,r:OR,glow:0};
-((r+2+c)%2===0?WALLS:BOOSTS).push(o);
+((r+1+c)%2===0?WALLS:BOOSTS).push(o);
 }
 })();
 
