@@ -46,7 +46,7 @@ small{opacity:.6;max-width:300px;line-height:1.4}
 <button id="b2" class="p2">İki oyuncu</button>
 <button id="b3" class="sim">Simülasyon: Zor vs Zor</button>
 <button id="b4" class="ultra">Ultra Hardcore vs Ultra Hardcore</button>
-<small>Tokmağı parmağınla sürükle. İki oyuncuda herkes kendi yarı sahasını kullanır. Yuvarlak yeşil hızlandırıcılar topu sektirip hızlandırır, mor yuvarlak duvarlar yavaşlatır.</small>
+<small>Tokmağı parmağınla sürükle. İki oyuncuda herkes kendi yarı sahasını kullanır. Mor yuvarlak duvarlar topu yavaşlatır.</small>
 </div>
 
 <div class="ov hide" id="pm">
@@ -80,14 +80,14 @@ var LV=[
 function clamp(v,a,b){return v<a?a:v>b?b:v}
 
 /* ---------- harita: duvarlar ve hızlandırıcılar (sağ-sol ve alt-üst simetrik) ---------- */
-/* Kare ızgara: 3 sütun x 3 satır, dama tahtası gibi dönüşümlü duvar / hızlandırıcı (orta nokta boş) */
+/* Kare ızgara: 3 sütun x 3 satır, dama tahtası gibi duvar (orta nokta boş) */
 var WALLS=[],BOOSTS=[],OR=30;
 (function(){
 var cols=[FW*.275,FW*.5,FW*.725],gap=FH*.15;
 for(var r=-1;r<=1;r++)for(var c=0;c<3;c++){
 if(r===0&&c===1)continue;
 var o={x:cols[c],y:FH/2+r*gap,r:OR,glow:0};
-((r+1+c)%2===0?WALLS:BOOSTS).push(o);
+if((r+1+c)%2===0)WALLS.push(o);
 }
 })();
 
