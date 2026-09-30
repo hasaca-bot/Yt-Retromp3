@@ -46,7 +46,7 @@ small{opacity:.6;max-width:300px;line-height:1.4}
 <button id="b2" class="p2">İki oyuncu</button>
 <button id="b3" class="sim">Simülasyon: Zor vs Zor</button>
 <button id="b4" class="ultra">Ultra Hardcore vs Ultra Hardcore</button>
-<small>Tokmağı parmağınla sürükle. İki oyuncuda herkes kendi yarı sahasını kullanır. Mor yuvarlak duvarlar topu yavaşlatır.</small>
+<small>Tokmağı parmağınla sürükle. İki oyuncuda herkes kendi yarı sahasını kullanır. Mor yuvarlak duvarlar topu yavaşlatır. Tokmakla topa yandan sürtersen falso verirsin, top kavis çizer.</small>
 </div>
 
 <div class="ov hide" id="pm">
@@ -66,7 +66,7 @@ var cv=document.getElementById('c'),ctx=cv.getContext('2d'),wrap=document.getEle
 var menu=document.getElementById('menu'),pm=document.getElementById('pm'),msg=document.getElementById('msg');
 var sc=1,ox=0,oy=0,W=0,H=0,DPR=1;
 var mode=1,level=1,running=false,paused=false,scoreA=0,scoreB=0,serveT=0,flash=0,flashC='#fff',soundOn=true;
-var puck={x:FW/2,y:FH/2,vx:0,vy:0,r:PR};
+var puck={x:FW/2,y:FH/2,vx:0,vy:0,r:PR,w:0,a:0};
 var pA={x:FW/2,y:FH*.15,vx:0,vy:0,r:MR,tx:FW/2,ty:FH*.15};
 var pB={x:FW/2,y:FH*.85,vx:0,vy:0,r:MR,tx:FW/2,ty:FH*.85};
 var touches={},trail=[],lastSnd=0,launch=0,stillT=0,hits=0,wb=0,replay=null,buf=[],simT=0,pendSide=false,tLabel='';
@@ -114,7 +114,7 @@ pA.x=pA.tx=FW/2;pA.y=pA.ty=FH*.15;pB.x=pB.tx=FW/2;pB.y=pB.ty=FH*.85;
 pA.vx=pA.vy=pB.vx=pB.vy=0;resetAI();
 }
 function resetPuck(side){
-puck.x=FW/2;puck.y=side===1?FH*.3:side===2?FH*.7:FH/2;puck.vx=puck.vy=0;trail=[];serveT=.9;launch=0;stillT=0;hits=0;buf=[];wb=0;
+puck.x=FW/2;puck.y=side===1?FH*.3:side===2?FH*.7:FH/2;puck.vx=puck.vy=0;puck.w=0;trail=[];serveT=.9;launch=0;stillT=0;hits=0;buf=[];wb=0;
 
 }
 function start(m){
@@ -248,7 +248,7 @@ var s2=Math.hypot(puck.vx,puck.vy)||1;puck.vx*=ns/s2;puck.vy*=ns/s2;
 o.glow=1;
 if(n-lastSnd>60){lastSnd=n;beep(520,.08,'sine',.07);beep(880,.14,'triangle',.06)}
 }else{
-puck.vx-=1.5*v*nx;puck.vy-=1.5*v*ny;puck.vx*=.55;puck.vy*=.55;
+puck.vx-=1.5*v*nx;puck.vy-=1.5*v*ny;puck.vx*=.55;puck.vy*=.55;puck.w*=-.5;
 o.glow=1;wb++;
 if(n-lastSnd>60){lastSnd=n;beep(120,.09,'sawtooth',.06)}
 }
@@ -260,7 +260,8 @@ if(d<.001){dx=0;dy=m===pA?1:-1;d=1}
 var nx=dx/d,ny=dy/d;
 puck.x=m.x+nx*mr;puck.y=m.y+ny*mr;
 var rv=(puck.vx-m.vx)*nx+(puck.vy-m.vy)*ny;
-if(rv<0){puck.vx-=1.9*rv*nx;puck.vy-=1.9*rv*ny;wb=0;if(mode===4)(m===pA?aiA:aiB).roll=true;
+if(rv<0){puck.vx-=1.9*rv*nx;puck.vy-=1.9*rv*ny;wb=0;
+var vt=(m.vx-puck.vx)*(-ny)+(m.vy-puck.vy)*nx;puck.w=clamp(puck.w*.4+vt*.012,-45,45);if(mode===4)(m===pA?aiA:aiB).roll=true;
 if(mode>=3){hits++;var s0=Math.hypot(puck.vx,puck.vy),want=Math.max(s0*(mode===4?1.06:1.03),((mode===4?600:400)+hits*(mode===4?60:35))*S);if(s0>1){puck.vx*=want/s0;puck.vy*=want/s0}else{puck.vx=nx*want;puck.vy=ny*want}}
 var sp=Math.hypot(puck.vx,puck.vy),cap=mode>=3?Infinity:MAXP;if(sp>cap){puck.vx*=cap/sp;puck.vy*=cap/sp}
 beep(300+Math.min(sp/S,1200)/3,.08,'triangle',.08)}
@@ -280,6 +281,7 @@ for(var i=0;i<n;i++){
 stepM(pB,h);stepM(pA,h);
 if(serveT>0){continue}
 var f=Math.pow(.72,h);
+var mg=puck.w*.075*h,ovx=puck.vx;puck.vx+=-puck.vy*mg;puck.vy+=ovx*mg;puck.a+=puck.w*h;puck.w*=Math.pow(.55,h);
 puck.x+=puck.vx*h;puck.y+=puck.vy*h;puck.vx*=f;puck.vy*=f;
 post(gx1,0);post(gx2,0);post(gx1,FH);post(gx2,FH);
 if(puck.x<r){puck.x=r;puck.vx=Math.abs(puck.vx)*.94;wallSnd()}
@@ -359,6 +361,7 @@ ctx.fillStyle='#fff';
 for(var i=0;i<trail.length;i++){ctx.globalAlpha=i/trail.length*.35;ctx.beginPath();ctx.arc(trail[i].x,trail[i].y,puck.r*(i/trail.length),0,7);ctx.fill()}
 ctx.globalAlpha=serveT>0?.5+.5*Math.sin(serveT*20):1;
 spr(SP.puck,puck.x,puck.y);ctx.globalAlpha=1;
+ctx.strokeStyle='#ff2e93';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(puck.x,puck.y);ctx.lineTo(puck.x+Math.cos(puck.a)*puck.r*.85,puck.y+Math.sin(puck.a)*puck.r*.85);ctx.stroke();
 spr(SP.mA,pA.x,pA.y);spr(SP.mB,pB.x,pB.y);
 if(replay){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.textAlign='center';ctx.fillStyle='#ffe14a';ctx.font='700 17px "Trebuchet MS",sans-serif';ctx.fillText('● GOL TEKRARI',W/2,oy-28);ctx.font='12px "Trebuchet MS",sans-serif';ctx.fillStyle='#e8f4ff';ctx.fillText('atlamak için dokun',W/2,oy-11);if(replay.label){ctx.font='700 30px "Trebuchet MS",sans-serif';ctx.fillStyle='#ff2e93';ctx.fillText(replay.label,W/2,oy+FH*sc*.5+10)}}
 if(flash>0){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalAlpha=flash*.28;ctx.fillStyle=flashC;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}
